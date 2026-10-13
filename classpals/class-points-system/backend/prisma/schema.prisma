@@ -1,0 +1,544 @@
+// Prisma Schema for Class Points Management System
+// 班级积分管理系统数据库模型
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ==================== 用户与账号管理 ====================
+
+model User {
+  id                String              @id @default(uuid())
+  phone             String              @unique
+  username          String?
+  password          String
+  role              UserRole            @default(TEACHER)
+  status            UserStatus          @default(ACTIVE)
+  licenseType       ActivationCodeType?
+  licenseName       String?
+  accountExpiresAt  DateTime?           // 账号过期时间
+  lastLoginAt       DateTime?
+  currentClassId    String?             // 当前使用的班级ID
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  classes           Class[]
+  activationCodes   UserActivationCode[]
+  loginLogs         LoginLog[]
+  operationLogs     OperationLog[]
+  operationSnapshots OperationSnapshot[]
+
+  @@index([phone])
+  @@index([status])
+  @@index([accountExpiresAt])
+  @@index([currentClassId])
+  @@map("users")
+}
+
+model ActivationCode {
+  id              String              @id @default(uuid())
+  code            String              @unique
+  type            ActivationCodeType
+  days            Int?
+  planName        String?
+  status          ActivationCodeStatus @default(UNUSED)
+  note            String?
+  createdAt       DateTime            @default(now())
+  firstActivatedAt DateTime?
+
+  userCodes       UserActivationCode[]
+
+  @@index([code])
+  @@index([status])
+  @@index([type])
+  @@map("activation_codes")
+}
+
+model UserActivationCode {
+  id              String    @id @default(uuid())
+  userId          String
+  activationCodeId String
+  activatedAt     DateTime  @default(now())
+  expiresAt       DateTime?
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activationCode  ActivationCode @relation(fields: [activationCodeId], references: [id])
+
+  @@index([userId])
+  @@index([activationCodeId])
+  @@map("user_activation_codes")
+}
+
+enum UserRole {
+  TEACHER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  EXPIRED
+}
+
+enum ActivationCodeType {
+  TIME_LIMITED
+  PERMANENT
+}
+
+enum ActivationCodeStatus {
+  UNUSED
+  ACTIVATED
+  EXPIRED
+}
+
+// ==================== 班级管理 ====================
+
+model Class {
+  id              String    @id @default(uuid())
+  name            String
+  teacherName     String?
+  userId          String
+  isArchived      Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  students        Student[]
+  groups          Group[]
+  pointRules      PointRule[]
+  shopItems       ShopItem[]
+  pointRecords    PointRecord[]
+  petPointRecords PetPointRecord[]
+  operationSnapshots OperationSnapshot[]
+
+  @@index([userId])
+  @@index([isArchived])
+  @@map("classes")
+}
+
+// ==================== 学生管理 ====================
+
+model Student {
+  id              String    @id @default(uuid())
+  classId         String
+  name            String
+  gender          Gender    @default(MALE)
+  studentNumber   String?
+  avatar          String?
+  avatarBgColor   String?   @default("#3B82F6")
+  isCadre         Boolean   @default(false)
+  cadrePosition   String?   // 预设班干部职位
+  customPosition  String?   // 自定义职位
+  groupId         String?
+  totalPoints     Int       @default(0)
+  availablePoints Int       @default(0)  // 可用积分（总积分 - 已兑换积分）
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  class           Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  group           Group?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  parents         ParentPhone[]
+  pointRecords    PointRecord[]
+  petPointRecords PetPointRecord[]
+  exchanges       Exchange[]
+  pet             StudentPet?
+  shareLinks      ShareLink[]
+
+  @@index([classId])
+  @@index([groupId])
+  @@index([totalPoints])
+  @@index([classId, totalPoints])
+  @@map("students")
+}
+
+model ParentPhone {
+  id              String    @id @default(uuid())
+  studentId       String
+  phone           String
+  relationship    String    // 爸爸/妈妈/家长1/家长2/其他
+  createdAt       DateTime  @default(now())
+
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([phone])
+  @@map("parent_phones")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+// ==================== 小组管理 ====================
+
+model Group {
+  id              String    @id @default(uuid())
+  classId         String
+  name            String
+  color           String    @default("#3B82F6")
+  leaderId        String?   // 组长学生ID
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  class           Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  students        Student[]
+
+  @@index([classId])
+  @@map("groups")
+}
+
+// ==================== 积分管理 ====================
+
+model PointRecord {
+  id              String    @id @default(uuid())
+  classId         String
+  studentId       String
+  points          Int       // 正数为加分，负数为扣分
+  reason          String
+  ruleId          String?
+  operatorId      String
+  operatorName    String
+  canUndo         Boolean   @default(true)
+  undoExpiresAt   DateTime? // 撤销过期时间（5分钟后）
+  isRevoked       Boolean   @default(false)  // 是否已撤销
+  revokedAt       DateTime? // 撤销时间
+  revokedBy       String?   // 撤销人ID
+  createdAt       DateTime  @default(now())
+
+  class           Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  rule            PointRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([classId])
+  @@index([studentId])
+  @@index([createdAt])
+  @@index([classId, createdAt])
+  @@index([studentId, createdAt])
+  @@index([isRevoked])
+  @@map("point_records")
+}
+
+model PointRule {
+  id              String    @id @default(uuid())
+  classId         String
+  name            String
+  points          Int
+  type            PointType
+  category        String?   // 作业/纪律/卫生/课堂表现/其他
+  icon            String?
+  isEnabled       Boolean   @default(true)
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  class           Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  pointRecords    PointRecord[]
+  petPointRecords PetPointRecord[]
+
+  @@index([classId])
+  @@index([isEnabled])
+  @@map("point_rules")
+}
+
+enum PointType {
+  ADD
+  DEDUCT
+}
+
+// ==================== 积分商店 ====================
+
+model ShopItem {
+  id              String    @id @default(uuid())
+  classId         String
+  name            String
+  description     String?
+  price           Int       // 积分价格
+  stock           Int?      // null 表示无限库存
+  image           String?
+  category        ItemCategory
+  isAvailable     Boolean   @default(true)
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  class           Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  exchanges       Exchange[]
+
+  @@index([classId])
+  @@index([isAvailable])
+  @@map("shop_items")
+}
+
+model Exchange {
+  id              String    @id @default(uuid())
+  studentId       String
+  itemId          String
+  quantity        Int       @default(1)
+  totalPrice      Int
+  status          ExchangeStatus @default(SUCCESS)
+  operatorId      String?   // 操作人ID（教师）
+  operatorName    String?   // 操作人姓名
+  canUndo         Boolean   @default(true)
+  undoExpiresAt   DateTime? // 撤回过期时间（5分钟后）
+  isRevoked       Boolean   @default(false)
+  revokedAt       DateTime?
+  revokedBy       String?
+  exchangedAt     DateTime  @default(now())
+
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  item            ShopItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([itemId])
+  @@index([status])
+  @@index([isRevoked])
+  @@map("exchanges")
+}
+
+enum ItemCategory {
+  PHYSICAL      // 实物奖励
+  PRIVILEGE     // 特权奖励
+  VIRTUAL       // 虚拟奖励
+}
+
+enum ExchangeStatus {
+  SUCCESS
+  CANCELLED
+}
+
+// ==================== 宠物系统 ====================
+
+model PetGallery {
+  id              String    @id @default(uuid())
+  name            String
+  type            String    // 猫/狗/龙/独角兽等
+  category        String?   // 梦幻童话/森林伙伴等，用于前端分类筛选
+  rarity          PetRarity @default(COMMON)
+  description     String?
+  source          String?   // 云端资源来源标识
+  version         Int       @default(1)
+  isEnabled       Boolean   @default(true)
+  eggImage        String
+  babyImage       String
+  teenImage       String
+  adultImage      String
+  finalImage      String
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  studentPets     StudentPet[]
+
+  @@index([isEnabled])
+  @@index([category])
+  @@map("pet_gallery")
+}
+
+model StudentPet {
+  id              String    @id @default(uuid())
+  studentId       String    @unique
+  petId           String
+  stage           PetStage  @default(EGG)
+  experience      Int       @default(0)
+  level           Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  pet             PetGallery @relation(fields: [petId], references: [id])
+  growthRecords   PetGrowthRecord[]
+  pointRecords    PetPointRecord[]
+
+  @@index([studentId])
+  @@index([petId])
+  @@map("student_pets")
+}
+
+model PetGrowthRecord {
+  id              String    @id @default(uuid())
+  studentPetId    String
+  fromStage       PetStage
+  toStage         PetStage
+  createdAt       DateTime  @default(now())
+
+  studentPet      StudentPet @relation(fields: [studentPetId], references: [id], onDelete: Cascade)
+
+  @@index([studentPetId])
+  @@map("pet_growth_records")
+}
+
+model PetPointRecord {
+  id              String    @id @default(uuid())
+  classId         String
+  studentId       String
+  studentPetId    String
+  points          Int
+  reason          String
+  ruleId          String?
+  operatorId      String
+  operatorName    String
+  createdAt       DateTime  @default(now())
+
+  studentPet      StudentPet @relation(fields: [studentPetId], references: [id], onDelete: Cascade)
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class           Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  rule            PointRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([classId])
+  @@index([studentId])
+  @@index([studentPetId])
+  @@index([createdAt])
+  @@map("pet_point_records")
+}
+
+enum PetRarity {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum PetStage {
+  EGG
+  BABY
+  TEEN
+  ADULT
+  FINAL
+}
+
+// ==================== 家长分享 ====================
+
+model ShareLink {
+  id               String    @id @default(uuid())
+  studentId        String
+  token            String    @unique
+  expiresAt        DateTime
+  allowViewRanking Boolean   @default(true)
+  hidePointRecords Boolean   @default(false)
+  hideDeductions   Boolean   @default(false)  // 隐藏扣分记录
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  student          Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([studentId])
+  @@index([expiresAt])
+  @@map("share_links")
+}
+
+// ==================== 宠物成长设置 ====================
+
+model PetSettings {
+  id            String        @id @default(uuid())
+  classId       String        @unique
+  eggToBaby     Int           @default(10)   // 蛋→幼年所需积分
+  babyToTeen    Int           @default(30)   // 幼年→少年所需积分
+  teenToAdult   Int           @default(60)   // 少年→成年所需积分
+  adultToFinal  Int           @default(100)  // 成年→完全体所需积分
+  assignMode    PetAssignMode @default(TEACHER_ASSIGN)  // 宠物分配模式
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([classId])
+  @@map("pet_settings")
+}
+
+model OperationSnapshot {
+  id          String                  @id @default(uuid())
+  classId     String
+  userId      String
+  type        OperationSnapshotType
+  status      OperationSnapshotStatus @default(ACTIVE)
+  targetId    String?
+  targetName  String?
+  summary     String?
+  payload     Json
+  restoredAt  DateTime?
+  restoredBy  String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  class       Class                   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  user        User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([classId, createdAt])
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([type])
+  @@map("operation_snapshots")
+}
+
+enum PetAssignMode {
+  STUDENT_CHOOSE   // 学生自己选择
+  TEACHER_ASSIGN   // 老师随机分配
+}
+
+enum OperationSnapshotType {
+  CLEAR_CLASS_POINTS
+  DELETE_STUDENT
+}
+
+enum OperationSnapshotStatus {
+  ACTIVE
+  RESTORED
+}
+
+// ==================== 系统日志 ====================
+
+model LoginLog {
+  id              String    @id @default(uuid())
+  userId          String
+  ip              String
+  userAgent       String?
+  createdAt       DateTime  @default(now())
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("login_logs")
+}
+
+model OperationLog {
+  id              String    @id @default(uuid())
+  userId          String
+  action          String
+  module          String
+  details         Json?
+  ip              String
+  createdAt       DateTime  @default(now())
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([module])
+  @@index([createdAt])
+  @@map("operation_logs")
+}
+
+// ==================== 随机点名历史 ====================
+
+model PickHistory {
+  id              String    @id @default(uuid())
+  classId         String
+  operatorId      String
+  operatorName    String
+  studentIds      String    // JSON array of student IDs
+  studentNames    String    // JSON array of student names
+  count           Int       // 点名数量
+  createdAt       DateTime  @default(now())
+
+  @@index([classId])
+  @@index([createdAt])
+  @@index([classId, createdAt])
+  @@map("pick_history")
+}

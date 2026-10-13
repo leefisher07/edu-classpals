@@ -1,0 +1,130 @@
+{
+  "classId": "b823608a-129f-4d78-9d03-468e5022707f",
+  "className": "文件自测A班39940834",
+  "mode": "append",
+  "importableSheetNames": [
+    "小组",
+    "学生",
+    "积分规则",
+    "商品"
+  ],
+  "canSubmit": true,
+  "conflicts": {
+    "students": [],
+    "rules": [],
+    "shopItems": []
+  },
+  "blockingReasons": [],
+  "appendPlan": {
+    "skippedStudents": [
+      "覆盖学生39940834",
+      "隐式组学生39940834"
+    ],
+    "skippedRules": [
+      "覆盖规则39940834（扣分）",
+      "隐式组规则39940834（加分）"
+    ],
+    "skippedShopItems": [
+      "覆盖商品39940834",
+      "隐式组商品39940834"
+    ],
+    "studentsToCreate": [],
+    "rulesToCreate": [],
+    "shopItemsToCreate": []
+  },
+  "summary": {
+    "groups": 3,
+    "students": 2,
+    "rules": 2,
+    "shopItems": 2,
+    "parentPhoneCount": 1
+  },
+  "toCreateGroups": [],
+  "students": [
+    {
+      "rowNumber": 2,
+      "name": "覆盖学生39940834",
+      "gender": "FEMALE",
+      "studentNumber": "REP001",
+      "groupName": "覆盖组39940834",
+      "isCadre": true,
+      "cadrePosition": "学习委员",
+      "totalPoints": 88,
+      "availablePoints": 66,
+      "parentPhones": [
+        {
+          "relationship": "爸爸",
+          "phone": "13900139000"
+        }
+      ]
+    },
+    {
+      "rowNumber": 3,
+      "name": "隐式组学生39940834",
+      "gender": "MALE",
+      "studentNumber": "AUTO001",
+      "groupName": "自动补组39940834",
+      "isCadre": false,
+      "totalPoints": 5,
+      "availablePoints": 5,
+      "parentPhones": []
+    }
+  ],
+  "samples": {
+    "groups": [
+      {
+        "rowNumber": 2,
+        "name": "覆盖组39940834",
+        "color": "#8B5CF6",
+        "leaderName": "覆盖学生39940834"
+      },
+      {
+        "rowNumber": 3,
+        "name": "显式组39940834",
+        "color": "#3B82F6"
+      },
+      {
+        "rowNumber": 4,
+        "name": "自动补组39940834",
+        "color": "#3B82F6"
+      }
+    ],
+    "rules": [
+      {
+        "rowNumber": 2,
+        "name": "覆盖规则39940834",
+        "points": 5,
+        "type": "DEDUCT",
+        "category": "纪律",
+        "isEnabled": true
+      },
+      {
+        "rowNumber": 3,
+        "name": "隐式组规则39940834",
+        "points": 3,
+        "type": "ADD",
+        "category": "课堂",
+        "isEnabled": true
+      }
+    ],
+    "shopItems": [
+      {
+        "rowNumber": 2,
+        "name": "覆盖商品39940834",
+        "price": 99,
+        "stock": 5,
+        "category": "VIRTUAL",
+        "description": "覆盖商品",
+        "isAvailable": true
+      },
+      {
+        "rowNumber": 3,
+        "name": "隐式组商品39940834",
+        "price": 8,
+        "stock": null,
+        "category": "PRIVILEGE",
+        "isAvailable": true
+      }
+    ]
+  }
+}
